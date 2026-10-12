@@ -37,7 +37,6 @@ TRA_XZ = "tra-xz"
 TRA_GZ = "tra-gz"
 AUT = "aut"
 IMCA = "imca"
-BCG = "bcg"
 
 # tasks
 TASK_CHECK = "check"
@@ -47,29 +46,8 @@ TASK_IMPORT = "import"
 # %modest = path to modest binary
 # %prism = path to prism binary
 # %storm = path to storm binary
-# %storm-conv = path to storm-conv binary
 # %indir = path to model directory
 # %outdir = path to output directory
-
-# bcg-io
-BCGIO = "bcgio"
-
-def bcgio_command(input_format : str, task : str, configuration : str) -> str:
-    cmd = "%bcgio"
-    # input
-    if input_format == AUT:
-        cmd += " %indir/modest.model.aut"
-    else:
-        raise AssertionError("Unsupported input format for bcg-io: " + input_format)
-    # task / output
-    if task == BCG:
-        cmd += " %outdir/bcgio.model.bcg"
-    else:
-        raise AssertionError("Unsupported task/output format for bcg-io: " + task)
-    # configuration not used
-    cmd += " ; xz -c %outdir/bcgio.model.bcg > %outdir/bcgio.model.bcg.xz ; gzip -c %outdir/bcgio.model.bcg > %outdir/bcgio.model.bcg.gz"
-    return cmd
-
 
 # Modest
 MODEST = "modest"
@@ -120,11 +98,13 @@ def modest_command(input_format : str, task : str, configuration : str) -> str:
 # PRISM
 PRISM = "prism"
 prism_configurations = OrderedDict()
-prism_configurations["ex"] = "-javamaxmem 32g -buidall -ex"
+prism_configurations["ex"] = "-javamaxmem 32g -buildall -ex"
 
 PRISM_INPUT_FORMATS = [PRISM_LANGUAGE, UMB, UMB_GZ, UMB_XZ, TRA, TRA_GZ, TRA_XZ]
 PRISM_OUTPUT_FORMATS = [UMB, UMB_GZ, UMB_XZ, TRA, TRA_GZ, TRA_XZ]
 
+# Workaround: PRISM strips the .gz/.xz extension from compressed UMB files (out.umb.gz becomes out.umb),
+# so compressed UMB files are named model.umbgz / model.umbxz instead.
 def prism_command(input_format : str, task : str, configuration : str) -> str:
     cmd = "%prism"
     # configuration
@@ -137,9 +117,9 @@ def prism_command(input_format : str, task : str, configuration : str) -> str:
     elif input_format == UMB:
         cmd += " -importmodel %indir/prism.model.umb"
     elif input_format == UMB_GZ:
-        cmd += " -importmodel %indir/prism.model.umb.gz:format=umb"
+        cmd += " -importmodel %indir/prism.model.umbgz:format=umb"
     elif input_format == UMB_XZ:
-        cmd += " -importmodel %indir/prism.model.umb.xz:format=umb"
+        cmd += " -importmodel %indir/prism.model.umbxz:format=umb"
     elif input_format == TRA:
         cmd += f" -importmodel %indir/prism.model.pexp"
     elif input_format == TRA_GZ:
@@ -156,9 +136,9 @@ def prism_command(input_format : str, task : str, configuration : str) -> str:
     elif task == UMB:
         cmd += f" -exportmodel %outdir/model.umb:format=umb,states=false,zip=false"
     elif task == UMB_GZ:
-        cmd += f" -exportmodel %outdir/model.umb.gz:format=umb,states=false,zip=gzip"
+        cmd += f" -exportmodel %outdir/model.umbgz:format=umb,states=false,zip=gzip"
     elif task == UMB_XZ:
-        cmd += f" -exportmodel %outdir/model.umb.xz:format=umb,states=false,zip=xz"
+        cmd += f" -exportmodel %outdir/model.umbxz:format=umb,states=false,zip=xz"
     elif task == TRA:
         cmd += f" -exportmodel %outdir/model.pexp:format=explicit,states=false,zip=false,precision=17"
     elif task == TRA_GZ:
@@ -177,15 +157,12 @@ storm_configurations["sparse"] = ""
 storm_configurations["cudd"] = "--engine dd-to-sparse --ddlib cudd --cudd:maxmem 8192"
 
 STORM_INPUT_FORMATS = [PRISM_LANGUAGE, JANI, UMB, UMB_XZ, UMB_GZ, DRN, DRN_XZ, DRN_GZ]
-STORM_OUTPUT_FORMATS = [JANI, UMB, UMB_XZ, UMB_GZ, DRN, DRN_XZ, DRN_GZ]
+STORM_OUTPUT_FORMATS = [UMB, UMB_XZ, UMB_GZ, DRN, DRN_XZ, DRN_GZ]
 
 def storm_command(input_format : str, task : str, configuration : str) -> str:
-    if input_format == PRISM_LANGUAGE and task == JANI:
-        cmd = "%storm-conv "
-    else:
-        cmd = "%storm "
-        # other options
-        cmd += "--timemem --buildfull " # additional time and memory output, build full model exhaustively
+    cmd = "%storm "
+    # other options
+    cmd += "--timemem --buildfull " # additional time and memory output, build full model exhaustively
     exact = ".exact" if configuration == "exact" else ""
     # input
     if input_format == PRISM_LANGUAGE:
@@ -215,8 +192,6 @@ def storm_command(input_format : str, task : str, configuration : str) -> str:
             cmd += "--janiproperty "
         else:
             cmd += "--prop %indir/property.props"
-    elif task == JANI:
-        cmd += "--prop %indir/property.props --tojani %outdir/model.jani"
     elif task == UMB:
         cmd += f"--exportbuild %outdir/model{exact}.umb umb --compression none "
     elif task == UMB_XZ:
@@ -279,9 +254,7 @@ if __name__ == "__main__":
             assert "_" not in s, "Underscores are not allowed in template identifiers. Found in '" + s + "'."
         task_str = "no-task" if task == "" else (task if task in [TASK_CHECK, TASK_IMPORT] else "to-" + task)
         template_id = f"{tool}_from-{input_format}_{task_str}_{configuration}"
-        if tool == BCGIO:
-            templates[template_id] = bcgio_command(input_format, task, configuration)
-        elif tool == MODEST:
+        if tool == MODEST:
             templates[template_id] = modest_command(input_format, task, configuration)
         elif tool == PRISM:
             templates[template_id] = prism_command(input_format, task, configuration)
@@ -327,10 +300,8 @@ if __name__ == "__main__":
                             outfiles.append(outfilename)
                     invocation["output-files"] = outfiles
                     # command = command.replace("%outdir", model_output_dir)
-                command = command.replace("%bcgio", os.path.join(bin_directory, BCGIO))
                 command = command.replace("%modest", os.path.join(bin_directory, MODEST))
                 command = command.replace("%prism", os.path.join(bin_directory, PRISM))
-                command = command.replace("%storm-conv", os.path.join(bin_directory, STORM + "-conv"))
                 command = command.replace("%storm", os.path.join(bin_directory, STORM))
                 invocation["commands"] = [c.strip() for c in command.split(";")]
                 invocations.append(invocation)
@@ -338,17 +309,6 @@ if __name__ == "__main__":
 
     all_export = []
     all_import = []
-
-    print("\n" + "#" * 40 + "\nGenerating storm-conv PRISM-TO-JANI conversion invocations...\n" + "#" * 40)
-    storm_prism_to_jani_templates = OrderedDict()
-    add_cmd_template(storm_prism_to_jani_templates, STORM, PRISM_LANGUAGE, JANI, "sparse")
-    storm_prism_to_jani = generate_invocations(storm_prism_to_jani_templates)
-
-    print("\n" + "#" * 40 + "\nGenerating bcgio export invocations...\n" + "#" * 40)
-    bcgio_exprt_templates = OrderedDict()
-    add_cmd_template(bcgio_exprt_templates, BCGIO, AUT, BCG, "default")
-    bcgio_exprt_invs = generate_invocations(bcgio_exprt_templates)
-    # all_export += bcgio_exprt_invs
 
     print("\n" + "#" * 40 + "\nGenerating Modest export invocations...\n" + "#" * 40)
     modest_exprt_templates = OrderedDict()
@@ -391,7 +351,6 @@ if __name__ == "__main__":
     print("\n" + "#" * 40 + "\nGenerating Storm export invocations...\n" + "#" * 40)
     storm_exprt_templates = OrderedDict()
     for out_format in STORM_OUTPUT_FORMATS:
-        if out_format == JANI: continue
         add_cmd_template(storm_exprt_templates, STORM, JANI, out_format, "sparse")
     storm_exprt_invs = generate_invocations(storm_exprt_templates)
     all_export += storm_exprt_invs
@@ -407,8 +366,6 @@ if __name__ == "__main__":
     all_import += storm_import_invs
 
     print("\n" + "#" * 40 + "\nSaving invocations to json...\n" + "#" * 40)
-    save_invjson(storm_prism_to_jani, repetitions, "inv_storm_prism_to_jani.json")
-    save_invjson(bcgio_exprt_invs, repetitions, "inv_bcgio_export.json")
     save_invjson(modest_exprt_invs, repetitions, "inv_modest_export.json")
     save_invjson(modest_import_invs, repetitions, "inv_modest_import.json")
     save_invjson(prism_exprt_invs, repetitions, "inv_prism_export.json")

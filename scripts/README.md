@@ -7,7 +7,20 @@ Python 3 scripts (standard library only) for benchmarking model import/export of
 generate_inv.py  ->  run.py  ->  copy_modelfiles.py  ->  run.py (import)  ->  create_csv.py  ->  create_html.py
 ```
 
+The conversions `prism_to_jani.py` (storm-conv) and `aut_to_bcg.py` (bcgio) run on their own, see below.
+
 All scripts print their usage when called with the wrong number of arguments. Paths below are examples.
+
+## Smoke test
+
+```bash
+./smoketest.sh [<bin dir>]
+```
+
+Runs the whole pipeline (conversions, steps 1–5) once on the model `wlan.4-0`, with all files in `./smoketest_workdir`
+(it asks before deleting an existing one). `<bin dir>` defaults to `./bin` and must contain `modest`, `prism`, `storm`,
+`storm-conv` and `bcgio` (see below for a dummy). It starts with the conversion of the PRISM file to JANI. Afterwards it checks that every configuration produced output, that the
+csv files contain no `ERR`/`TO`/`MO`/empty cells for the model and that the html pages exist.
 
 ## Conventions
 
@@ -15,7 +28,7 @@ All scripts print their usage when called with the wrong number of arguments. Pa
   `property.props`. Model names must not contain `_`, because `_` is the separator in config, invocation and log names.
 - **Invocation id**: `<tool>_from-<input>_<task>_<config>_<model>`, e.g. `storm_from-jani_to-umb_sparse_<model>`.
   Task is `check`, `import` or `to-<format>` (export). Logs are named `<invocation id>_rep<N>.log`.
-- Command templates use placeholders `%indir`, `%outdir`, `%modest`, `%prism`, `%storm`, `%storm-conv`;
+- Command templates use placeholders `%indir`, `%outdir`, `%modest`, `%prism`, `%storm`;
   `generate_inv.py` resolves the tool paths and `run.py` resolves the directories (see below).
 
 ## 1. `generate_inv.py` – create invocation files
@@ -30,17 +43,15 @@ Builds the command line for every tool/format/configuration combination and ever
 | File | Content |
 | --- | --- |
 | `inv_export.json` / `inv_import.json` | all exports / all imports (+`check`) |
-| `inv_all.json` | exports followed by imports (shuffled, fixed seed) |
+| `inv_all.json` | exports and imports mixed (shuffled, fixed seed); don't run it sequentially, since imports need the exported files: run `inv_export.json`, then `copy_modelfiles.py`, then `inv_import.json` |
 | `inv_{modest,prism,storm}_{export,import}.json` | per tool |
-| `inv_storm_prism_to_jani.json`, `inv_bcgio_export.json` | PRISM→JANI conversion, AUT→BCG |
 
-- `<bin dir>` must contain the `modest`, `prism` and `storm` (and `storm-conv`) binaries.
+- `<bin dir>` must contain the `modest`, `prism` and `storm` binaries.
 - `<output dir>` receives exported files as `<output dir>/<tool>_from-<in>_to-<out>_<config>/<model>/`.
 - Each invocation is repeated `<repetitions>` times and the list is shuffled.
 - To change which tools/formats/configurations are generated, edit the `*_configurations` dicts, the
   `*_INPUT/OUTPUT_FORMATS` lists and the bottom of the script.
 - Only models containing `model.prism`, `model.jani` and `property.props` are used; others are skipped with a warning.
-- The `bcgio` binary (for `inv_bcgio_export.json`) is also expected in `<bin dir>`.
 
 ## 2. `run.py` – execute invocations
 
@@ -68,6 +79,29 @@ into `<model dir>/<model>/` as `<tool>.<file>` (e.g. `storm.model.umb.xz`, `pris
 invocations from step 1 read these files via `%indir`. Existing non-empty files are not overwritten.
 Run it after the export invocations and before the import invocations. The script aborts if `<output dir>`
 contains an unknown config folder (the allowed ones are listed in the script).
+
+## Conversions: `prism_to_jani.py` and `aut_to_bcg.py`
+
+```bash
+python scripts/prism_to_jani.py <storm-conv binary> <model dir>
+python scripts/aut_to_bcg.py    <bin dir> <model dir> <output dir> <logs dir>
+```
+
+Both run each conversion once, without time limit:
+
+- `prism_to_jani.py` converts `model.prism` + `property.props` of every model in `<model dir>` to JANI with the given
+  `storm-conv` binary. It calls storm-conv directly (output goes to stdout, no log files) and **writes `model.jani` into
+  the model directory, overwriting an existing one**. Run it before `generate_inv.py`, which requires `model.jani`.
+  It exits with an error if a model lacks `model.prism`/`property.props` or if a conversion fails.
+- `aut_to_bcg.py` (builds invocations and executes them with `run.py`) converts `modest.model.aut` (so run it after `copy_modelfiles.py`) to `bcgio.model.bcg` with
+  `<bin dir>/bcgio`, and additionally compresses the result with `xz` and `gzip` (one invocation/log each).
+  Output: `<output dir>/bcgio_from-aut_to-bcg_default/<model>/bcgio.model.bcg[.xz|.gz]`.
+  The logs are named `modest_bcgio_aut-to-bcg[-xz|-gz]_default_<model>_rep1.log` so that `create_csv.py` reports the
+  sizes next to the Modest exports.
+
+For testing without CADP, `tools/bcgiodummy/bcgio` is a stand-in for `bcgio` that checks that the input exists and
+copies the pre-computed `.bcg` file of the model from `tools/bcgiodummy/bcg/<model>.bcg`.
+Link it into the bin directory: `ln -s $PWD/tools/bcgiodummy/bcgio bin/bcgio`.
 
 ## 4. `create_csv.py` – parse logs into CSV files
 

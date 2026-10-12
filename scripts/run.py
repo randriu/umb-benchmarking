@@ -44,12 +44,14 @@ class CommandExecution(object):
         # it's run after the fork() and before  exec() to run the shell.
         self.proc = subprocess.Popen(command_line.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=os.setsid)
         start_time = time.time()
-        timer1 = threading.Timer(time_limit, self.abort)
-        timer2 = threading.Timer(time_limit + 60, self.send_sigkill) # give the program 60 seconds to terminate by itself, send SIGKILL afterwards
         self.is_aborted = False
         self.output = ""
-        timer1.start()
-        timer2.start()
+        timers = []
+        if time_limit is not None: # no time limit if None
+            timers.append(threading.Timer(time_limit, self.abort))
+            timers.append(threading.Timer(time_limit + 60, self.send_sigkill)) # give the program 60 seconds to terminate by itself, send SIGKILL afterwards
+        for timer in timers:
+            timer.start()
         try:
             stdout, stderr = self.proc.communicate()
         except KeyboardInterrupt:
@@ -64,15 +66,15 @@ class CommandExecution(object):
         except Exception as e:
             self.output = self.output + "Error when executing the command:\n{}\n".format(e)
         finally:
-            timer1.cancel()
-            timer2.cancel()
+            for timer in timers:
+                timer.cancel()
             self.wall_time = time.time() - start_time
             self.return_code = self.proc.returncode
         if stdout is not None:
             self.output = self.output + stdout.decode('utf8')
         if stderr is not None and len(stderr) > 0:
             self.output = self.output + "\n" + "#"*30 + "Output to stderr" + "#"*30 + "\n" + stderr.decode('utf8')
-        if self.is_aborted and self.wall_time <= time_limit:
+        if self.is_aborted and time_limit is not None and self.wall_time <= time_limit:
             print("WARN: Execution was aborted. The measured time is {} seconds which is still below the time limit of {} seconds".format(self.wall_time, time_limit))
 
 def execute_command_lines(command_lines, time_limits):
@@ -98,7 +100,7 @@ def execute_command_lines(command_lines, time_limits):
 
 def run_invocation(inv : json, overwrite_time_limit = None):
     commands = inv["commands"]
-    time_limits = [overwrite_time_limit if overwrite_time_limit is not None else inv["time-limit"]] * len(commands)
+    time_limits = [overwrite_time_limit if overwrite_time_limit is not None else inv.get("time-limit")] * len(commands) # None = no time limit
     tmp_indir = TemporaryDirectory(suffix=inv["id"] + "_tmp_indir_", ignore_cleanup_errors=True)
     tmp_outdir = TemporaryDirectory(suffix=inv["id"] + "_tmp_outdir_", ignore_cleanup_errors=True)
     log = ""
@@ -126,18 +128,8 @@ def run_invocation(inv : json, overwrite_time_limit = None):
         logfile.write(log)
     return "done ({:.1f}s)".format(walltime) if ret == 0 else ("timeout" if ret is None else "error ({})".format(ret))
 
-if __name__ == "__main__":
-    print("runs invocation files. Usage:\n\tpython {} <invocation json file> <index>|all [<overwrite_time_limit>]".format(sys.argv[0]))
-    if len(sys.argv) not in [3,4]:
-        print("Invalid number of arguments.")
-        sys.exit(1)
-    invs = load_json(sys.argv[1])
-    print("Loaded invocations file with {} invocations.".format(len(invs)))
-    indices = [int(sys.argv[2])] if sys.argv[2] != "all" else range(len(invs))
-    overwrite_time_limit = None
-    if len(sys.argv) == 4:
-        overwrite_time_limit = int(sys.argv[3])
-        print(f"Overwriting time limit to {overwrite_time_limit} seconds.")
+def run_invocations(invs, indices, overwrite_time_limit = None):
+    """ Runs the invocations with the given indices one after another and prints a status line for each. """
     print(f"{now()} - Beginning execution of {len(indices)} invocations...")
     for i in indices:
         inv = invs[i]
@@ -156,3 +148,16 @@ if __name__ == "__main__":
         print(status)
     print(f"{now()} - Finished execution of invocations.")
 
+if __name__ == "__main__":
+    print("runs invocation files. Usage:\n\tpython {} <invocation json file> <index>|all [<overwrite_time_limit>]".format(sys.argv[0]))
+    if len(sys.argv) not in [3,4]:
+        print("Invalid number of arguments.")
+        sys.exit(1)
+    invs = load_json(sys.argv[1])
+    print("Loaded invocations file with {} invocations.".format(len(invs)))
+    indices = [int(sys.argv[2])] if sys.argv[2] != "all" else range(len(invs))
+    overwrite_time_limit = None
+    if len(sys.argv) == 4:
+        overwrite_time_limit = int(sys.argv[3])
+        print(f"Overwriting time limit to {overwrite_time_limit} seconds.")
+    run_invocations(invs, indices, overwrite_time_limit)

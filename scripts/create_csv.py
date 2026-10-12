@@ -86,6 +86,10 @@ def parse_float_or_zero(text : str, before : str, after : str):
         return 0.0
     return value
 
+def is_bcgio_log(log : str):
+    """ bcgio logs pretend to be modest logs (see aut_to_bcg.py). The command line is in the log header. """
+    return "bcgio" in log.split("Wallclock time:")[0]
+
 def is_timeout(log : str):
     return "Return code: None (timeout)" in log
 
@@ -109,18 +113,18 @@ def is_not_supported(log : str):
 
 def is_input_file_not_found(log : str):
     # mcsta
-    pos = log.find("##############################Output to stderr##############################\nFile \"models/")
+    pos = log.find("##############################Output to stderr##############################\nFile \"")
     if pos != -1 and "not found" in log[pos:]:
         return True
     # bcgio
     if "Size of output file is 0 bytes" in log:
         return True
-    if "File does not exist." in log and "bcg_io" in log:
+    if "File does not exist." in log and is_bcgio_log(log):
         return True
     # storm
     if "Unable to read from non-existing file " in log:
         return True
-    pos = log.find("The given path '\"models/")
+    pos = log.find("The given path '")
     if pos != -1 and "does not exist." in log[pos:log.find("\n",pos)]:
         return True
     if "Lzma library error:  No progress is possible." in log or "truncated gzip input" in log:
@@ -128,10 +132,10 @@ def is_input_file_not_found(log : str):
     # prism
     if "Error: Error importing from UMB: Could not open UMB file:" in log:
         return True
-    pos = log.find("Error: File \"models/")
+    pos = log.find("Error: File \"")
     if pos != -1 and "\" not found." in log[pos:log.find("\n",pos)]:
         return True
-    pos = log.find("Parsing PRISM model file \"models/")
+    pos = log.find("Parsing PRISM model file \"")
     if pos != -1 and "/property.props\"..." in log[pos:log.find("\n",pos)]:
         return True
     return False
@@ -176,7 +180,7 @@ def parse_modest_log(log : str, what : str):
         importtime += parse_float_or_zero(sublog, "Time (load): ", " s")
         return importtime
     elif what == EXPORT_TIME:
-        if "bcgio_from-aut_to-bcg" in log:
+        if is_bcgio_log(log):
             return ""
         start_pos = log.find("+ UMB export")
         if start_pos == -1:
