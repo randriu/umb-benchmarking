@@ -33,6 +33,8 @@ DRN = "drn"
 DRN_XZ = "drn-xz"
 DRN_GZ = "drn-gz"
 TRA = "tra"
+TRA_XZ = "tra-xz"
+TRA_GZ = "tra-gz"
 AUT = "aut"
 IMCA = "imca"
 BCG = "bcg"
@@ -118,12 +120,10 @@ def modest_command(input_format : str, task : str, configuration : str) -> str:
 # PRISM
 PRISM = "prism"
 prism_configurations = OrderedDict()
-prism_configurations["default"] = ""
-prism_configurations["ex"] = "-ex"
-# prism_configurations["norewards"] = ""
+prism_configurations["ex"] = "-javamaxmem 32g -buidall -ex"
 
-PRISM_INPUT_FORMATS = [PRISM_LANGUAGE, UMB, TRA]
-PRISM_OUTPUT_FORMATS = [UMB, UMB_GZ, TRA]
+PRISM_INPUT_FORMATS = [PRISM_LANGUAGE, UMB, UMB_GZ, UMB_XZ, TRA, TRA_GZ, TRA_XZ]
+PRISM_OUTPUT_FORMATS = [UMB, UMB_GZ, UMB_XZ, TRA, TRA_GZ, TRA_XZ]
 
 def prism_command(input_format : str, task : str, configuration : str) -> str:
     cmd = "%prism"
@@ -131,7 +131,6 @@ def prism_command(input_format : str, task : str, configuration : str) -> str:
     assert configuration in prism_configurations, "Unknown Prism configuration: " + configuration
     cmd += " " + prism_configurations[configuration]
 
-    enable_rewards = configuration != "norewards"
     # input
     if input_format == PRISM_LANGUAGE:
         cmd += " %indir/model.prism"
@@ -139,8 +138,14 @@ def prism_command(input_format : str, task : str, configuration : str) -> str:
         cmd += " -importmodel %indir/prism.model.umb"
     elif input_format == UMB_GZ:
         cmd += " -importmodel %indir/prism.model.umb.gz:format=umb"
+    elif input_format == UMB_XZ:
+        cmd += " -importmodel %indir/prism.model.umb.xz:format=umb"
     elif input_format == TRA:
-        cmd += f" -importmodel %indir/prism.model.tradir/model.all"
+        cmd += f" -importmodel %indir/prism.model.pexp"
+    elif input_format == TRA_GZ:
+        cmd += f" -importmodel %indir/prism.model.pexp.gz:format=explicit"
+    elif input_format == TRA_XZ:
+        cmd += f" -importmodel %indir/prism.model.pexp.xz:format=explicit"
     else:
         raise AssertionError("Unsupported input format for PRISM: " + input_format)
     # task / output
@@ -149,11 +154,17 @@ def prism_command(input_format : str, task : str, configuration : str) -> str:
     elif task == TASK_CHECK:
         cmd += " %indir/property.props"
     elif task == UMB:
-        cmd += f" -exportmodel %outdir/model.umb:states=false,obs=false,rewards={'true' if enable_rewards else 'false'},zip=false"
+        cmd += f" -exportmodel %outdir/model.umb:format=umb,states=false,zip=false"
     elif task == UMB_GZ:
-        cmd += f" -exportmodel %outdir/model.umb.gz:states=false,obs=false,rewards={'true' if enable_rewards else 'false'},zip=true"
+        cmd += f" -exportmodel %outdir/model.umb.gz:format=umb,states=false,zip=gzip"
+    elif task == UMB_XZ:
+        cmd += f" -exportmodel %outdir/model.umb.xz:format=umb,states=false,zip=xz"
     elif task == TRA:
-        cmd += f" -exportmodel %outdir/model.tra,lab{',rew' if enable_rewards else ''}:precision=17"
+        cmd += f" -exportmodel %outdir/model.pexp:format=explicit,states=false,zip=false,precision=17"
+    elif task == TRA_GZ:
+        cmd += f" -exportmodel %outdir/model.pexp.gz:format=explicit,states=false,zip=gzip,precision=17"
+    elif task == TRA_XZ:
+        cmd += f" -exportmodel %outdir/model.pexp.xz:format=explicit,states=false,zip=xz,precision=17"
     else:
         raise AssertionError("Unsupported task/output format: " + task)
     return cmd
@@ -162,7 +173,7 @@ def prism_command(input_format : str, task : str, configuration : str) -> str:
 STORM = "storm"
 storm_configurations = OrderedDict()
 storm_configurations["sparse"] = ""
-storm_configurations["exact"] = "--exact"
+# storm_configurations["exact"] = "--exact"
 storm_configurations["cudd"] = "--engine dd-to-sparse --ddlib cudd --cudd:maxmem 8192"
 
 STORM_INPUT_FORMATS = [PRISM_LANGUAGE, JANI, UMB, UMB_XZ, UMB_GZ, DRN, DRN_XZ, DRN_GZ]
@@ -252,7 +263,7 @@ if __name__ == "__main__":
         model_input_dir = os.path.join(input_directory, model)
         if not os.path.isdir(model_input_dir): continue
         model_ok = True
-        for filename in ["model.jani", "model.prism"]:
+        for filename in ["model.jani", "model.prism", "property.props"]:
             if not os.path.exists(os.path.join(model_input_dir, filename)):
                 print("Warning: model '{}' does not contain a {} file. Skipping.".format(model, filename))
                 model_ok = False
@@ -282,7 +293,7 @@ if __name__ == "__main__":
         invocations = []
         for cmd_id in cmd_templates:
             print("Command template '{}':\n\t{}".format(cmd_id, cmd_templates[cmd_id]))
-            for model in os.listdir(input_directory):
+            for model in models:
                 model_input_dir = os.path.join(input_directory, model)
                 model_output_dir = os.path.join(output_directory, cmd_id, model)
                 invocation_id = f"{cmd_id}_{model}"
@@ -312,18 +323,11 @@ if __name__ == "__main__":
                     outfiles = []
                     for outfilestring in command.split("%outdir/")[1:]:
                         outfilename = outfilestring.split(" ")[0].split(":")[0]
-                        if "tra,lab,rew" in outfilename:
-                            outfiles.append(outfilename.replace("tra,lab,rew", "tra"))
-                            outfiles.append(outfilename.replace("tra,lab,rew", "lab"))
-                            outfiles.append(outfilename.replace("tra,lab,rew", "srew"))
-                            outfiles.append(outfilename.replace("tra,lab,rew", "trew"))
-                        elif "tra,lab" in outfilename:
-                            outfiles.append(outfilename.replace("tra,lab", "tra"))
-                            outfiles.append(outfilename.replace("tra,lab", "lab"))
-                        elif outfilename not in outfiles:
+                        if outfilename not in outfiles:
                             outfiles.append(outfilename)
                     invocation["output-files"] = outfiles
                     # command = command.replace("%outdir", model_output_dir)
+                command = command.replace("%bcgio", os.path.join(bin_directory, BCGIO))
                 command = command.replace("%modest", os.path.join(bin_directory, MODEST))
                 command = command.replace("%prism", os.path.join(bin_directory, PRISM))
                 command = command.replace("%storm-conv", os.path.join(bin_directory, STORM + "-conv"))
@@ -361,8 +365,8 @@ if __name__ == "__main__":
     modest_import_templates = OrderedDict()
     for in_format in MODEST_INPUT_FORMATS:
         for cfg in modest_configurations.keys():
-            add_cmd_template(modest_import_templates, MODEST, in_format, TASK_CHECK, cfg)
             add_cmd_template(modest_import_templates, MODEST, in_format, TASK_IMPORT, cfg)
+    add_cmd_template(modest_import_templates, MODEST, JANI, TASK_CHECK, "default")
     modest_import_invs = generate_invocations(modest_import_templates)
     all_import += modest_import_invs
 
@@ -378,9 +382,9 @@ if __name__ == "__main__":
     prism_import_templates = OrderedDict()
     for in_format in PRISM_INPUT_FORMATS:
         for cfg in prism_configurations.keys():
-            if cfg == "norewards": continue
-            add_cmd_template(prism_import_templates, PRISM, in_format, TASK_CHECK, cfg)
             add_cmd_template(prism_import_templates, PRISM, in_format, TASK_IMPORT, cfg)
+    add_cmd_template(prism_import_templates, PRISM, PRISM_LANGUAGE, TASK_CHECK, "ex")
+    add_cmd_template(prism_import_templates, PRISM, UMB, TASK_CHECK, "ex")
     prism_import_invs = generate_invocations(prism_import_templates)
     all_import += prism_import_invs
 
@@ -389,19 +393,15 @@ if __name__ == "__main__":
     for out_format in STORM_OUTPUT_FORMATS:
         if out_format == JANI: continue
         add_cmd_template(storm_exprt_templates, STORM, JANI, out_format, "sparse")
-        add_cmd_template(storm_exprt_templates, STORM, JANI, out_format, "exact")
-        # add_cmd_template(storm_exprt_templates, STORM, JANI, out_format, "cudd")
     storm_exprt_invs = generate_invocations(storm_exprt_templates)
     all_export += storm_exprt_invs
 
     print("\n" + "#" * 40 + "\nGenerating Storm import invocations...\n" + "#" * 40)
     storm_import_templates = OrderedDict()
     for in_format in STORM_INPUT_FORMATS:
-        add_cmd_template(storm_import_templates, STORM, in_format, TASK_CHECK, "sparse")
         add_cmd_template(storm_import_templates, STORM, in_format, TASK_IMPORT, "sparse")
-        add_cmd_template(storm_import_templates, STORM, in_format, TASK_CHECK, "exact")
-        add_cmd_template(storm_import_templates, STORM, in_format, TASK_IMPORT, "exact")
-    add_cmd_template(storm_import_templates, STORM, JANI, TASK_CHECK, "cudd")
+    add_cmd_template(storm_import_templates, STORM, JANI, TASK_CHECK, "sparse")
+    add_cmd_template(storm_import_templates, STORM, UMB, TASK_CHECK, "sparse")
     add_cmd_template(storm_import_templates, STORM, JANI, TASK_IMPORT, "cudd")
     storm_import_invs = generate_invocations(storm_import_templates)
     all_import += storm_import_invs

@@ -45,16 +45,16 @@ def median_csv(csv, name : str):
     save_csv(a, name + "_median")
     return a
 
-def quantile_csv(csv, name : str, min_value : float = 0.1):
-    columns = [[]] * len(csv[0][1:])
+def quantile_csv(csv, name : str):
+    columns = [[] for _ in csv[0][1:]]
     for row in csv[1:]:
         for i, entry in enumerate(row[1:]):
             if entry == "" or entry == "nan":
                 continue
             assert isinstance(entry, float), "Unexpected entry type: {}".format(entry)
-            columns[i] = columns[i] + [entry]
-    for i in range(len(columns)):
-        columns[i].sort()
+            columns[i].append(entry)
+    for column in columns:
+        column.sort()
     output = [["n"] + csv[0][1:]]
     for n in range(len(csv) - 1):
         line = [n + 1]
@@ -318,5 +318,5 @@ if __name__ == "__main__":
     quantile_csv(imp_t, IMPORT_TIME)
     quantile_csv(full_t, FULL_TIME)
     quantile_csv(exp_t, EXPORT_TIME)
-    quantile_csv(size, EXPORT_SIZE,1024)
+    quantile_csv(size, EXPORT_SIZE)
 
