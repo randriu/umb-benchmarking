@@ -34,7 +34,7 @@ python3 "$SCRIPTS/run.py" inv_export.json all
 python3 "$SCRIPTS/copy_modelfiles.py" out models > copy_modelfiles.out
 
 echo "== AUT to BCG"
-python3 "$SCRIPTS/aut_to_bcg.py" "$BIN" models out logs
+python3 "$SCRIPTS/aut_to_bcg.py" "$BIN/bcgio" models out logs
 
 echo "== Import"
 python3 "$SCRIPTS/run.py" inv_import.json all

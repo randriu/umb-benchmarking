@@ -1,15 +1,39 @@
 # Benchmarking scripts
 
-Python 3 scripts (standard library only) for benchmarking model import/export of Modest, PRISM and Storm
-(UMB, DRN, TRA, AUT, ... formats). Typical pipeline:
+Python 3 scripts for benchmarking model import/export of Modest, PRISM and Storm
+(UMB, DRN, TRA, AUT, ... formats).
 
+tl;dr:
+
+```bash
+mkdir experiments && cd experiments
+cp -r ../models .   # can also copy just a subset to check in more reasonable time
+
+# (re-)generate jani files from prism (optional, overwrites models/*/model.jani)
+# python3 ../scripts/prism_to_jani.py ../bin/storm-conv models
+
+# generate invocations (7200s time limit, 5 repetitions)
+python3 ../scripts/generate_inv.py ../bin models out logs 7200 5
+
+# run the exporters
+python3 ../scripts/run.py inv_export.json all
+
+# copy the exported files to where the importers expect them
+python3 ../scripts/copy_modelfiles.py out models
+
+# run the importers/checkers
+python3 ../scripts/run.py inv_import.json all
+
+# if a bcgio binary is in the bin directory (needs the copied modest.model.aut):
+# python3 ../scripts/aut_to_bcg.py ../bin/bcgio models out logs
+
+# results
+mkdir csv html
+(cd csv && python3 ../../scripts/create_csv.py ../logs)
+(cd html && python3 ../../scripts/create_html.py ../csv ../logs ../models)
 ```
-generate_inv.py  ->  run.py  ->  copy_modelfiles.py  ->  run.py (import)  ->  create_csv.py  ->  create_html.py
-```
 
-The conversions `prism_to_jani.py` (storm-conv) and `aut_to_bcg.py` (bcgio) run on their own, see below.
-
-All scripts print their usage when called with the wrong number of arguments. Paths below are examples.
+All scripts print their usage when called with the wrong number of arguments.
 
 ## Smoke test
 
@@ -74,8 +98,8 @@ Several indices can be distributed over parallel/cluster jobs by calling the scr
 python scripts/copy_modelfiles.py <output dir> <model dir>
 ```
 
-Copies the files produced by the export runs (`<output dir>/<config>/<model>/model.umb`, `.drn`, `.tra`, `.aut`, ...)
-into `<model dir>/<model>/` as `<tool>.<file>` (e.g. `storm.model.umb.xz`, `prism.model.tradir`). The import
+Copies the files produced by the export runs (`<output dir>/<config>/<model>/model.umb`, `.drn`, `.pexp`, `.aut`, ...)
+into `<model dir>/<model>/` as `<tool>.<file>` (e.g. `storm.model.umb.xz`, `prism.model.pexp.xz`). The import
 invocations from step 1 read these files via `%indir`. Existing non-empty files are not overwritten.
 Run it after the export invocations and before the import invocations. The script aborts if `<output dir>`
 contains an unknown config folder (the allowed ones are listed in the script).
@@ -84,7 +108,7 @@ contains an unknown config folder (the allowed ones are listed in the script).
 
 ```bash
 python scripts/prism_to_jani.py <storm-conv binary> <model dir>
-python scripts/aut_to_bcg.py    <bin dir> <model dir> <output dir> <logs dir>
+python scripts/aut_to_bcg.py    <bcgio binary> <model dir> <output dir> <logs dir>
 ```
 
 Both run each conversion once, without time limit:
@@ -94,7 +118,7 @@ Both run each conversion once, without time limit:
   the model directory, overwriting an existing one**. Run it before `generate_inv.py`, which requires `model.jani`.
   It exits with an error if a model lacks `model.prism`/`property.props` or if a conversion fails.
 - `aut_to_bcg.py` (builds invocations and executes them with `run.py`) converts `modest.model.aut` (so run it after `copy_modelfiles.py`) to `bcgio.model.bcg` with
-  `<bin dir>/bcgio`, and additionally compresses the result with `xz` and `gzip` (one invocation/log each).
+  the given `bcgio` binary, and additionally compresses the result with `xz` and `gzip` (one invocation/log each).
   Output: `<output dir>/bcgio_from-aut_to-bcg_default/<model>/bcgio.model.bcg[.xz|.gz]`.
   The logs are named `modest_bcgio_aut-to-bcg[-xz|-gz]_default_<model>_rep1.log` so that `create_csv.py` reports the
   sizes next to the Modest exports.

@@ -2,3 +2,4 @@ bin/
 tools/
 .idea/
 tmp/
+smoketest_workdir/

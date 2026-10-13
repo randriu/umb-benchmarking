@@ -327,6 +327,7 @@ if __name__ == "__main__":
         for cfg in modest_configurations.keys():
             add_cmd_template(modest_import_templates, MODEST, in_format, TASK_IMPORT, cfg)
     add_cmd_template(modest_import_templates, MODEST, JANI, TASK_CHECK, "default")
+    add_cmd_template(modest_import_templates, MODEST, UMB, TASK_CHECK, "default")
     modest_import_invs = generate_invocations(modest_import_templates)
     all_import += modest_import_invs
 

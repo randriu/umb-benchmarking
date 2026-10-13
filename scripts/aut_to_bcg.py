@@ -19,13 +19,12 @@ TASKS = OrderedDict([
 ])
 
 if __name__ == "__main__":
-    print("Converts the aut files exported by modest to (compressed) bcg files using bcgio. Usage:\n\tpython {} <bin directory> <model directory> <output directory> <logs directory>".format(sys.argv[0]))
+    print("Converts the aut files exported by modest to (compressed) bcg files using bcgio. Usage:\n\tpython {} <bcgio binary> <model directory> <output directory> <logs directory>".format(sys.argv[0]))
     if len(sys.argv) != 5:
         print("Invalid number of arguments.")
         sys.exit(1)
-    bin_directory, model_directory, output_directory, logs_directory = [os.path.abspath(p) for p in sys.argv[1:5]]
+    bcgio, model_directory, output_directory, logs_directory = [os.path.abspath(p) for p in sys.argv[1:5]]
 
-    bcgio = os.path.join(bin_directory, "bcgio")
     if not os.path.exists(bcgio):
         print("Error: bcgio binary '{}' not found.".format(bcgio))
         sys.exit(1)

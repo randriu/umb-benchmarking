@@ -87,8 +87,9 @@ def parse_float_or_zero(text : str, before : str, after : str):
     return value
 
 def is_bcgio_log(log : str):
-    """ bcgio logs pretend to be modest logs (see aut_to_bcg.py). The command line is in the log header. """
-    return "bcgio" in log.split("Wallclock time:")[0]
+    """ bcgio logs pretend to be modest logs (see aut_to_bcg.py). Either the command line in the log header or the
+    output file names mention bcgio (old logs created by create_bcg_size_logs.py can have an empty command line). """
+    return "bcgio" in log.split("Wallclock time:")[0] or "bcgio.model.bcg" in log
 
 def is_timeout(log : str):
     return "Return code: None (timeout)" in log
