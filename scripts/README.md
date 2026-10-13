@@ -160,3 +160,13 @@ Run it in an empty output directory (it writes into the current directory). It c
   with links to per-cell log pages.
 
 The `<csv dir>` must contain the raw (non-median) CSVs from step 4. Logs are embedded unmodified.
+
+## 6. `paper_numbers.py` – recompute the numbers quoted in the paper
+
+```bash
+python scripts/paper_numbers.py <csv dir> <model dir>
+```
+
+Reads the `*_median.csv` files from step 4 and prints all numbers quoted in the experiments section of the paper
+(median factors of import/export times and file sizes, number of models with results, total time factors, size of
+the high-level model files, ...). Times below 0.1 seconds count as 0.1 seconds, except for the "largest factor".
