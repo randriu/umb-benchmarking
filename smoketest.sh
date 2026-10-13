@@ -41,7 +41,7 @@ python3 "$SCRIPTS/run.py" inv_import.json all
 
 echo "== CSV and HTML"
 mkdir csv html
-(cd csv && python3 "$SCRIPTS/create_csv.py" ../logs > ../create_csv.out)
+(cd csv && python3 "$SCRIPTS/create_csv.py" ../logs ../models > ../create_csv.out)
 (cd html && python3 "$SCRIPTS/create_html.py" ../csv ../logs ../models > ../create_html.out)
 
 echo "== Sanity checks"

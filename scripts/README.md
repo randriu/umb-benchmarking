@@ -29,7 +29,7 @@ python3 ../scripts/run.py inv_import.json all
 
 # results
 mkdir csv html
-(cd csv && python3 ../../scripts/create_csv.py ../logs)
+(cd csv && python3 ../../scripts/create_csv.py ../logs ../models)
 (cd html && python3 ../../scripts/create_html.py ../csv ../logs ../models)
 ```
 
@@ -130,14 +130,15 @@ Link it into the bin directory: `ln -s $PWD/tools/bcgiodummy/bcgio bin/bcgio`.
 ## 4. `create_csv.py` – parse logs into CSV files
 
 ```bash
-python scripts/create_csv.py <logs dir>
+python scripts/create_csv.py <logs dir> <model dir>
 ```
 
 Parses all `*.log` files and writes (tab-separated, into the current directory):
 
 - `import_time.csv`, `full_time.csv`, `export_time.csv`, `export_size.csv`: one row per model, one column per
   `<tool>_<from>_<task>_<config>`, cells are lists of the repetitions' values;
-- `*_median.csv`: median per cell;
+- `*_median.csv`: median per cell, plus a column `model_type` (`dtmc`, `ctmc`, `mdp`, as given in the `type` field of the
+  model's `model.jani` in `<model dir>`; used for the marker classes of the scatter plots);
 - `*_quantile.csv`: sorted values per column (for quantile/cactus plots).
 
 Failures are encoded as `TO` (timeout), `MO` (memout), `NS` (not supported), `ERR` (other error); an empty cell means

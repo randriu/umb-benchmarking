@@ -1,4 +1,4 @@
-import os,sys
+import os,sys,json
 from collections import OrderedDict
 
 IMPORT_TIME = "import_time"
@@ -26,7 +26,18 @@ def save_csv(csv, name : str):
             csv_file.write(CSV_SEPARATOR.join(line_strs) + "\n")
     print("Saved results invocations to '{}'.".format(name + ".csv"))
 
-def median_csv(csv, name : str):
+def load_model_types(models_dir : str):
+    """ Returns a dictionary: model name -> model type (dtmc, ctmc, mdp, ...) as given in the model.jani file. """
+    model_types = dict()
+    for model in sorted(os.listdir(models_dir)):
+        jani_path = os.path.join(models_dir, model, "model.jani")
+        if os.path.isfile(jani_path):
+            with open(jani_path, 'r', encoding='utf-8-sig') as jani_file:
+                model_types[model] = json.load(jani_file)["type"]
+    return model_types
+
+def median_csv(csv, name : str, model_types : dict = None):
+    """ Saves and returns the medians. If model types are given, the saved file has an additional column 'model_type'. """
     a = [csv[0]]  # header
     for row in csv[1:]:
         new_row = [row[0]]  # first column is the model name
@@ -42,7 +53,12 @@ def median_csv(csv, name : str):
                     median = values[len(values) // 2] if len(values) % 2 == 1 else (values[len(values) // 2 - 1] + values[len(values) // 2]) / 2
                     new_row.append(median)
         a.append(new_row)
-    save_csv(a, name + "_median")
+    if model_types is None:
+        save_csv(a, name + "_median")
+    else:
+        missing = [row[0] for row in a[1:] if row[0] not in model_types]
+        assert len(missing) == 0, "No model type (model.jani) found for models: {}".format(", ".join(missing))
+        save_csv([a[0] + ["model_type"]] + [row + [model_types[row[0]]] for row in a[1:]], name + "_median")
     return a
 
 def quantile_csv(csv, name : str):
@@ -299,25 +315,26 @@ def create_csv(log_dir : str, what : str):
     return csv_lines
 
 if __name__ == "__main__":
-    print("Creates csv files from logs. Usage:\n\tpython {} <log directory>".format(sys.argv[0]))
-    if len(sys.argv) != 2:
+    print("Creates csv files from logs. Usage:\n\tpython {} <log directory> <models directory>".format(sys.argv[0]))
+    if len(sys.argv) != 3:
         print("Invalid number of arguments.")
         sys.exit(1)
     log_dir = sys.argv[1]
+    model_types = load_model_types(sys.argv[2])
 
     # raw data
     import_csv = create_csv(log_dir, IMPORT_TIME)
     save_csv(import_csv, IMPORT_TIME)
-    imp_t = median_csv(import_csv, IMPORT_TIME)
+    imp_t = median_csv(import_csv, IMPORT_TIME, model_types)
     full_csv = create_csv(log_dir, FULL_TIME)
     save_csv(full_csv, FULL_TIME)
-    full_t = median_csv(full_csv, FULL_TIME)
+    full_t = median_csv(full_csv, FULL_TIME, model_types)
     export_csv = create_csv(log_dir, EXPORT_TIME)
     save_csv(export_csv, EXPORT_TIME)
-    exp_t = median_csv(export_csv, EXPORT_TIME)
+    exp_t = median_csv(export_csv, EXPORT_TIME, model_types)
     size_csv = create_csv(log_dir, EXPORT_SIZE)
     save_csv(size_csv, EXPORT_SIZE)
-    size = median_csv(size_csv, EXPORT_SIZE)
+    size = median_csv(size_csv, EXPORT_SIZE, model_types)
 
     # quantile
     quantile_csv(imp_t, IMPORT_TIME)
