@@ -4,6 +4,20 @@ from collections import OrderedDict
 TIME_DATA = "time"
 SIZE_DATA = "size"
 
+# Figures of the paper (see the experiments section): the quantile plots of the format efficiency (one row per tool;
+# import time, export time, and file size from left to right) and the scatter plots of the total model checking time
+FIG_EFFICIENCY = 5
+FIG_TOTAL_TIME = 6
+TOOL_ROWS = {"prism": "top", "modest": "middle", "storm": "bottom"}
+TOOL_COLUMNS = {"prism": "on the left of", "modest": "in the middle of", "storm": "on the right of"}
+CSV_COLUMNS = {"import_time": "on the left of", "export_time": "in the middle of", "export_size": "on the right of"}
+
+def paper_reference(tool : str, csv_name : str):
+    """ Returns a description of the plot of the paper that is created from the table of the given tool and csv file. """
+    if csv_name == "full_time":
+        return "data for the plot {} Fig. {}".format(TOOL_COLUMNS[tool], FIG_TOTAL_TIME)
+    return "data for the plot {} the {} row of Fig. {}".format(CSV_COLUMNS[csv_name], TOOL_ROWS[tool], FIG_EFFICIENCY)
+
 def ensure_directory(path : str):
     if not os.path.exists(path):
         os.makedirs(path)
@@ -415,7 +429,7 @@ if __name__ == "__main__":
                 continue
             out_dir = prefix + csv_name
             generate_table(content, header, logs_dir, out_dir, data_type)
-            out_dirs.append(out_dir)
+            out_dirs.append((out_dir, paper_reference(prefix[:-1], csv_name)))
     with open("index.html", 'w') as indexfile:
         indexfile.write("""<!DOCTYPE html>
 <html>
@@ -426,10 +440,11 @@ if __name__ == "__main__":
 </head>
 <body>
 <h1>Benchmark results</h1>
+<p>The tables contain the data of the plots in Fig. {} and Fig. {} of the paper.</p>
 <ul>
-""")
-        for out_dir in out_dirs:
-            indexfile.write("<li><a href=\"{}/index.html\">{}</a></li>\n".format(out_dir, out_dir))
+""".format(FIG_EFFICIENCY, FIG_TOTAL_TIME))
+        for out_dir, reference in out_dirs:
+            indexfile.write("<li><a href=\"{}/index.html\">{}</a> ({})</li>\n".format(out_dir, out_dir, reference))
         indexfile.write("</ul>\n</body>\n</html>\n")
 
     with open("_config.yml", 'w') as cfgfile:

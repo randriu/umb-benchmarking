@@ -52,7 +52,16 @@ MODELS=(
     pnueli-zuck.10                   # mdp, 8.6 h
 )
 
-mkdir -p experiments-all && cd experiments-all
+EXPERIMENT_DIR=experiments-all
+if [ -e "$EXPERIMENT_DIR" ]; then
+    read -r -p "'$EXPERIMENT_DIR' already exists. Delete it to start a fresh experiment? [y/N] " answer || answer=n
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        rm -rf -- "$EXPERIMENT_DIR"
+    else
+        echo "Keeping '$EXPERIMENT_DIR': files of earlier runs stay there (and are overwritten where the new run writes the same files)."
+    fi
+fi
+mkdir -p "$EXPERIMENT_DIR" && cd "$EXPERIMENT_DIR"
 mkdir -p models
 for model in "${MODELS[@]}"; do
     cp -r "../models/$model" models/
@@ -74,9 +83,12 @@ python3 ../scripts/run.py inv_import.json all
 # python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
 
 # results
-mkdir csv html
+mkdir -p csv html
 (cd csv && python3 ../../scripts/create_csv.py ../logs ../models)
 (cd html && python3 ../../scripts/create_html.py ../csv ../logs ../models)
 
 # numbers of the paper (for the models of this run)
 python3 ../scripts/paper_numbers.py csv models
+
+# plots of the paper (for the models of this run): compile plots.tex with pdflatex (twice)
+python3 ../scripts/create_tex.py csv

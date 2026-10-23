@@ -3,10 +3,49 @@
 Python 3 scripts for benchmarking model import/export of Modest, PRISM and Storm
 (UMB, DRN, TRA, AUT, ... formats).
 
-tl;dr:
+## Setup
+
+The scripts expect the tools in a directory `bin/` (in the repository root, ignored by git) as symbolic links:
 
 ```bash
-mkdir experiments && cd experiments
+mkdir -p bin
+ln -s /path/to/modest/modest                bin/modest      # Modest Toolset (mcsta is run as `modest mcsta`)
+ln -s /path/to/prism/bin/prism              bin/prism
+ln -s /path/to/storm/build/bin/storm        bin/storm
+ln -s /path/to/storm/build/bin/storm-conv   bin/storm-conv  # only for prism_to_jani.py
+ln -s /path/to/cadp/bin.x64/bcg_io          bin/bcgio       # only for aut_to_bcg.py (CADP's bcg_io is called bcgio here)
+```
+
+- Use absolute paths and no trailing `/` in the link target. A link such as `.../bin/storm/` cannot be executed.
+- `generate_inv.py` and `run.py` need `modest`, `prism`, and `storm`. `storm-conv` and `bcgio` are only needed for the
+  conversions below (they are passed to the scripts as `bin/storm-conv` and `bin/bcgio`).
+- The paper uses PRISM 4.11 (`f118f0b`), Storm 1.14.0 (`2c6a7c2`), mcsta v3.1.311 (`g14c460466`), and CADP 2025-l.
+- Without CADP, link the dummy instead (see "Conversions" below): `ln -s $PWD/tools/bcgiodummy/bcgio bin/bcgio`.
+- Check the setup with `for t in modest prism storm; do test -x bin/$t || echo "bin/$t is missing"; done`.
+
+## Quick start
+
+Three scripts in the repository root run the whole pipeline (steps 1, 2, 4, 5 below) in their own directory:
+
+| Script | Models | Time limit, repetitions | Takes about | Directory |
+| --- | --- | --- | --- | --- |
+| `./smoketest.sh` | `consensus.4-4` | 100 s, 1 | 2 minutes | `experiments-smoketest/` |
+| `./subset.sh` | 20 representative models | 1800 s, 1 | 5.5 hours | `experiments-subset/` |
+| `./all.sh` | all 36 models of the paper | 7200 s, 5 | days (run the invocations in parallel jobs) | `experiments-all/` |
+
+The models are listed explicitly in the `MODELS` array at the top of each script (with their type and an estimate of their
+runtime), so you can handpick your own subset by editing it. `subset.sh` and `all.sh` end by running `paper_numbers.py`,
+which prints the numbers quoted in the paper, and `create_tex.py`, which creates `plots.tex` with the plots of the paper
+(compile it with `pdflatex plots.tex`, twice). The scripts do not run the optional conversions (`prism_to_jani.py`,
+`aut_to_bcg.py`; see the comments in the scripts). The results are in `<directory>/csv` and `<directory>/html/index.html`.
+If the directory already exists, the scripts ask whether to delete it to start a fresh experiment. If you answer no (or
+run non-interactively), they keep it and continue in it; files of earlier runs, e.g., logs and models that are no longer
+in the `MODELS` list, then remain and show up in the results.
+
+## Step by step
+
+```bash
+mkdir -p experiments && cd experiments
 cp -r ../models .   # can also copy just a subset to check in more reasonable time
 
 # (re-)generate jani files from prism (optional, overwrites models/*/model.jani)
@@ -25,23 +64,18 @@ python3 ../scripts/run.py inv_import.json all
 # python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
 
 # results
-mkdir csv html
+mkdir -p csv html
 (cd csv && python3 ../../scripts/create_csv.py ../logs ../models)
 (cd html && python3 ../../scripts/create_html.py ../csv ../logs ../models)
+
+# numbers quoted in the paper
+python3 ../scripts/paper_numbers.py csv models
+
+# plots of the paper (creates plots.tex, compile it with pdflatex, twice)
+python3 ../scripts/create_tex.py csv
 ```
 
 All scripts print their usage when called with the wrong number of arguments.
-
-## Smoke test
-
-```bash
-./smoketest.sh [<bin dir>]
-```
-
-Runs the whole pipeline (conversions, steps 1–5) once on the model `wlan.4-0`, with all files in `./smoketest_workdir`
-(it asks before deleting an existing one). `<bin dir>` defaults to `./bin` and must contain `modest`, `prism`, `storm`,
-`storm-conv` and `bcgio` (see below for a dummy). It starts with the conversion of the PRISM file to JANI. Afterwards it checks that every configuration produced output, that the
-csv files contain no `ERR`/`TO`/`MO`/empty cells for the model and that the html pages exist.
 
 ## Conventions
 
@@ -86,13 +120,14 @@ python scripts/run.py <invocation json> <index>|all [<time limit override [s]>]
 Runs one invocation (by index) or all of them sequentially. For each one it copies the input files into a temporary
 directory, runs the commands (with timeout; the process group is killed on timeout), writes the log (command, wall
 time, return code, output, sizes of output files) to `<logs dir>/<log name>`, and copies the output files to the
-invocation's output directory (first repetition only). It prints one status line per invocation
+invocation's output directory (the model directory; first repetition only). An invocation without a `time-limit` runs
+without a timeout. It prints one status line per invocation
 (`done`, `timeout`, `error (<code>)`).
 
 Example: `python scripts/run.py inv_storm_export.json all` or `python scripts/run.py inv_all.json 17 600`.
 Several indices can be distributed over parallel/cluster jobs by calling the script with different indices.
 
-## Conversions: `prism_to_jani.py` and `aut_to_bcg.py`
+## 3. Conversions: `prism_to_jani.py` and `aut_to_bcg.py`
 
 ```bash
 python scripts/prism_to_jani.py <storm-conv binary> <model dir>
@@ -141,7 +176,8 @@ python scripts/create_html.py <csv dir> <logs dir> <model dir>
 
 Run it in an empty output directory (it writes into the current directory). It creates:
 
-- `style.css`, `index.html` (a list of links to the tables below), `_config.yml`,
+- `style.css`, `index.html` (a list of links to the tables below, each with the plot of the paper that it belongs to,
+  e.g., "data for the plot in the middle of the top row of Fig. 5"), `_config.yml`,
 - `models/<model>/` with `model.prism`, `property.props`, `model.jani` and an `index.html` page,
 - `<tool>_<csv name>/index.html` for tool ∈ {modest, prism, storm} and csv name ∈ {`export_size`, `export_time`,
   `import_time`, `full_time`}: sortable tables (median ± max deviation, best value highlighted, TO/MO/NS/ERR colored)
@@ -162,3 +198,19 @@ file sizes, the sizes of the high-level model files, and the statistics of the t
 Times below 0.1 seconds count as 0.1 seconds, except for the "largest factor". `subset.sh` and `all.sh` call it at the
 end; the numbers in the paper are the ones for all 36 models (`all.sh`). For a subset of the models, or if `aut_to_bcg.py`
 was not run, the numbers differ or are reported as n/a.
+
+## 7. `create_tex.py` – recreate the plots of the paper
+
+```bash
+python scripts/create_tex.py <csv dir>
+pdflatex plots.tex && pdflatex plots.tex
+```
+
+Creates `plots.tex` in the current directory, a standalone LaTeX document (needs `pgfplots` and `pgfplotstable`) that
+reproduces the plots of the paper from the csv files of step 4, so that they can be compared with the paper: the
+quantile plots of the import time, export time and file size with one row per tool, and the scatter plots of the total
+model checking time. It contains the same plot definitions, lines, labels and colors as the paper, and the figures are numbered as in the paper
+(Fig. 5: format efficiency, Fig. 6: total model checking time). Lines whose data is
+missing (e.g., the BCG files if `aut_to_bcg.py` was not run) are left out with a warning, and only the models of the csv
+files are shown. The `<csv dir>` is referenced by the path given on the command line, so compile `plots.tex` in the
+directory from which that path is valid. The second `pdflatex` run is needed for the legend of the scatter plots.

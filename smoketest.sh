@@ -10,7 +10,16 @@ MODELS=(
     consensus.4-4  # mdp,   2
 )
 
-mkdir -p experiments-smoketest && cd experiments-smoketest
+EXPERIMENT_DIR=experiments-smoketest
+if [ -e "$EXPERIMENT_DIR" ]; then
+    read -r -p "'$EXPERIMENT_DIR' already exists. Delete it to start a fresh experiment? [y/N] " answer || answer=n
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        rm -rf -- "$EXPERIMENT_DIR"
+    else
+        echo "Keeping '$EXPERIMENT_DIR': files of earlier runs stay there (and are overwritten where the new run writes the same files)."
+    fi
+fi
+mkdir -p "$EXPERIMENT_DIR" && cd "$EXPERIMENT_DIR"
 mkdir -p models
 for model in "${MODELS[@]}"; do
     cp -r "../models/$model" models/
