@@ -57,3 +57,6 @@ python3 ../scripts/run.py inv_import.json all
 mkdir csv html
 (cd csv && python3 ../../scripts/create_csv.py ../logs ../models)
 (cd html && python3 ../../scripts/create_html.py ../csv ../logs ../models)
+
+# numbers of the paper (for the models of this run)
+python3 ../scripts/paper_numbers.py csv models

@@ -141,7 +141,7 @@ python scripts/create_html.py <csv dir> <logs dir> <model dir>
 
 Run it in an empty output directory (it writes into the current directory). It creates:
 
-- `style.css`, `index.md`, `_config.yml` (GitHub Pages / Jekyll ready),
+- `style.css`, `index.html` (a list of links to the tables below), `_config.yml`,
 - `models/<model>/` with `model.prism`, `property.props`, `model.jani` and an `index.html` page,
 - `<tool>_<csv name>/index.html` for tool ∈ {modest, prism, storm} and csv name ∈ {`export_size`, `export_time`,
   `import_time`, `full_time`}: sortable tables (median ± max deviation, best value highlighted, TO/MO/NS/ERR colored)
@@ -155,6 +155,10 @@ The `<csv dir>` must contain the raw (non-median) CSVs from step 4. Logs are emb
 python scripts/paper_numbers.py <csv dir> <model dir>
 ```
 
-Reads the `*_median.csv` files from step 4 and prints all numbers quoted in the experiments section of the paper
-(median factors of import/export times and file sizes, number of models with results, total time factors, size of
-the high-level model files, ...). Times below 0.1 seconds count as 0.1 seconds, except for the "largest factor".
+Prints the numbers quoted in the experiments section of the paper, in the order of the paper, so that they can be
+validated: the models with results and the reasons for the failures, median factors of import times, export times and
+file sizes, the sizes of the high-level model files, and the statistics of the total model checking time. It reads the
+`export_time.csv` and the `*_median.csv` files from step 4 and the `model.prism`/`model.jani` files from `<model dir>`.
+Times below 0.1 seconds count as 0.1 seconds, except for the "largest factor". `subset.sh` and `all.sh` call it at the
+end; the numbers in the paper are the ones for all 36 models (`all.sh`). For a subset of the models, or if `aut_to_bcg.py`
+was not run, the numbers differ or are reported as n/a.

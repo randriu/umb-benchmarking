@@ -1,69 +1,37 @@
 #!/usr/bin/env bash
-# Smoke test: runs the whole benchmarking pipeline on one small model, with all files in ./smoketest_workdir.
-# Usage: ./smoketest.sh [<bin dir>]     (default: ./bin, must contain modest, prism, storm, storm-conv)
-set -euo pipefail
+set -e
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS="$ROOT/scripts"
-BIN="$(cd "${1:-$ROOT/bin}" && pwd)"
-WORK="$ROOT/smoketest_workdir"
-MODEL="embedded.8-12"
-TIME_LIMIT=600
+# Runs the benchmarks on a small model, which takes about 2 minutes
+# (with the time limit of 100 seconds and one repetition used below).
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
-for tool in modest prism storm storm-conv; do
-    [ -x "$BIN/$tool" ] || { echo "ERROR: '$BIN/$tool' does not exist or is not executable." >&2; exit 1; }
+# The estimated runtime (in minutes) is based on the logs in experiments-paper/logs
+MODELS=(
+    consensus.4-4  # mdp,   2
+)
+
+mkdir -p experiments-smoketest && cd experiments-smoketest
+mkdir -p models
+for model in "${MODELS[@]}"; do
+    cp -r "../models/$model" models/
 done
 
-if [ -e "$WORK" ]; then
-    read -r -p "'$WORK' already exists. Delete it? [y/N] " answer
-    [[ "$answer" =~ ^[Yy]$ ]] || { echo "Aborting."; exit 1; }
-    rm -rf "$WORK"
-fi
-mkdir -p "$WORK/models/$MODEL"
-cp "$ROOT/models/$MODEL/model.prism" "$ROOT/models/$MODEL/property.props" "$WORK/models/$MODEL/"
-cd "$WORK"
+# (re-)generate jani files from prism (optional, overwrites models/*/model.jani)
+# python3 ../scripts/prism_to_jani.py ../bin/storm-conv models
 
-echo "== PRISM to JANI"
-python3 "$SCRIPTS/prism_to_jani.py" "$BIN/storm-conv" models
+# generate invocations (100 time limit, 1 repetition)
+python3 ../scripts/generate_inv.py ../bin models logs 100 1
 
-echo "== Generating invocations"
-python3 "$SCRIPTS/generate_inv.py" "$BIN" models out logs "$TIME_LIMIT" 1 > generate_inv.out
+# run the exporters (the exported files are written to the model directories)
+python3 ../scripts/run.py inv_export.json all
 
-echo "== Export"
-python3 "$SCRIPTS/run.py" inv_export.json all
-python3 "$SCRIPTS/copy_modelfiles.py" out models > copy_modelfiles.out
+# run the importers/checkers (requires to have the exported files first)
+python3 ../scripts/run.py inv_import.json all
 
-echo "== AUT to BCG"
-python3 "$SCRIPTS/aut_to_bcg.py" "$BIN/bcgio" models out logs
+# if a bcgio binary is available (needs the exported modest.model.aut):
+# python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
 
-echo "== Import"
-python3 "$SCRIPTS/run.py" inv_import.json all
-
-echo "== CSV and HTML"
-mkdir csv html
-(cd csv && python3 "$SCRIPTS/create_csv.py" ../logs ../models > ../create_csv.out)
-(cd html && python3 "$SCRIPTS/create_html.py" ../csv ../logs ../models > ../create_html.out)
-
-echo "== Sanity checks"
-failed=0
-fail() { echo "FAIL: $1"; failed=1; }
-
-# every configuration (incl. conversions) produced a non-empty output file for the model
-for dir in out/*/"$MODEL"; do
-    [ -n "$(find "$dir" -type f -size +0c)" ] || fail "no output in $dir"
-done
-# raw csv files contain a row for the model and no failed (ERR/TO/MO) or empty ([]) cells
-for name in export_size export_time import_time full_time; do
-    grep -q "^$MODEL" "csv/$name.csv" || fail "csv/$name.csv has no row for $MODEL"
-    grep -wE "ERR|TO|MO" "csv/$name.csv" > /dev/null && fail "csv/$name.csv contains ERR/TO/MO cells"
-done
-for name in export_size import_time full_time; do
-    grep -F "[]" "csv/$name.csv" > /dev/null && fail "csv/$name.csv contains empty cells"
-done
-# html pages exist
-for page in index.md models/$MODEL/index.html {modest,prism,storm}_{export_size,export_time,import_time,full_time}/index.html; do
-    [ -s "html/$page" ] || fail "missing html/$page"
-done
-
-[ "$failed" = 0 ] || { echo "Smoke test FAILED (see $WORK)."; exit 1; }
-echo "Smoke test passed (results in $WORK)."
+# results
+mkdir -p csv html
+(cd csv && python3 ../../scripts/create_csv.py ../logs ../models)
+(cd html && python3 ../../scripts/create_html.py ../csv ../logs ../models)

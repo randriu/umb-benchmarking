@@ -416,10 +416,21 @@ if __name__ == "__main__":
             out_dir = prefix + csv_name
             generate_table(content, header, logs_dir, out_dir, data_type)
             out_dirs.append(out_dir)
-    with open("index.md", 'w') as indexfile:
-        indexfile.write("# Benchmark results\n\n")
+    with open("index.html", 'w') as indexfile:
+        indexfile.write("""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Benchmark results</title>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+<h1>Benchmark results</h1>
+<ul>
+""")
         for out_dir in out_dirs:
-            indexfile.write("- [{}](./{}/index.html)\n".format(out_dir, out_dir))
+            indexfile.write("<li><a href=\"{}/index.html\">{}</a></li>\n".format(out_dir, out_dir))
+        indexfile.write("</ul>\n</body>\n</html>\n")
 
     with open("_config.yml", 'w') as cfgfile:
         cfgfile.write("name: UMB Experiments\ntitle: null")
