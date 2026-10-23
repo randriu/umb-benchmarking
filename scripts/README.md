@@ -13,19 +13,16 @@ cp -r ../models .   # can also copy just a subset to check in more reasonable ti
 # python3 ../scripts/prism_to_jani.py ../bin/storm-conv models
 
 # generate invocations (7200s time limit, 5 repetitions)
-python3 ../scripts/generate_inv.py ../bin models out logs 7200 5
+python3 ../scripts/generate_inv.py ../bin models logs 7200 5
 
-# run the exporters
+# run the exporters (the exported files are written to the model directories)
 python3 ../scripts/run.py inv_export.json all
-
-# copy the exported files to where the importers expect them
-python3 ../scripts/copy_modelfiles.py out models
 
 # run the importers/checkers
 python3 ../scripts/run.py inv_import.json all
 
-# if a bcgio binary is in the bin directory (needs the copied modest.model.aut):
-# python3 ../scripts/aut_to_bcg.py ../bin/bcgio models out logs
+# if a bcgio binary is available (needs the exported modest.model.aut):
+# python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
 
 # results
 mkdir csv html
@@ -58,7 +55,7 @@ csv files contain no `ERR`/`TO`/`MO`/empty cells for the model and that the html
 ## 1. `generate_inv.py` – create invocation files
 
 ```bash
-python scripts/generate_inv.py <bin dir> <model dir> <output dir> <logs dir> <time limit [s]> <repetitions>
+python scripts/generate_inv.py <bin dir> <model dir> <logs dir> <time limit [s]> <repetitions>
 ```
 
 Builds the command line for every tool/format/configuration combination and every model, and writes JSON files
@@ -67,11 +64,14 @@ Builds the command line for every tool/format/configuration combination and ever
 | File | Content |
 | --- | --- |
 | `inv_export.json` / `inv_import.json` | all exports / all imports (+`check`) |
-| `inv_all.json` | exports and imports mixed (shuffled, fixed seed); don't run it sequentially, since imports need the exported files: run `inv_export.json`, then `copy_modelfiles.py`, then `inv_import.json` |
+| `inv_all.json` | exports and imports mixed (shuffled, fixed seed); don't run it sequentially, since imports need the exported files: run `inv_export.json` and then `inv_import.json` |
 | `inv_{modest,prism,storm}_{export,import}.json` | per tool |
 
 - `<bin dir>` must contain the `modest`, `prism` and `storm` binaries.
-- `<output dir>` receives exported files as `<output dir>/<tool>_from-<in>_to-<out>_<config>/<model>/`.
+- Exported files are written to the model directories as `<model dir>/<model>/<tool>.<file>` (e.g. `storm.model.umb.xz`,
+  `modest.umb.properties.txt`, `prism.model.pexp.gz`), where the import invocations read them. Files of earlier runs are
+  overwritten. `generate_inv.py` prints a warning if several command templates (e.g. two configurations of a tool) write
+  the same file name, or if an output file would overwrite a model file (`model.prism`, `model.jani`, `property.props`) or a bcg file.
 - Each invocation is repeated `<repetitions>` times and the list is shuffled.
 - To change which tools/formats/configurations are generated, edit the `*_configurations` dicts, the
   `*_INPUT/OUTPUT_FORMATS` lists and the bottom of the script.
@@ -92,23 +92,11 @@ invocation's output directory (first repetition only). It prints one status line
 Example: `python scripts/run.py inv_storm_export.json all` or `python scripts/run.py inv_all.json 17 600`.
 Several indices can be distributed over parallel/cluster jobs by calling the script with different indices.
 
-## 3. `copy_modelfiles.py` – make exported files available as import inputs
-
-```bash
-python scripts/copy_modelfiles.py <output dir> <model dir>
-```
-
-Copies the files produced by the export runs (`<output dir>/<config>/<model>/model.umb`, `.drn`, `.pexp`, `.aut`, ...)
-into `<model dir>/<model>/` as `<tool>.<file>` (e.g. `storm.model.umb.xz`, `prism.model.pexp.xz`). The import
-invocations from step 1 read these files via `%indir`. Existing non-empty files are not overwritten.
-Run it after the export invocations and before the import invocations. The script aborts if `<output dir>`
-contains an unknown config folder (the allowed ones are listed in the script).
-
 ## Conversions: `prism_to_jani.py` and `aut_to_bcg.py`
 
 ```bash
 python scripts/prism_to_jani.py <storm-conv binary> <model dir>
-python scripts/aut_to_bcg.py    <bcgio binary> <model dir> <output dir> <logs dir>
+python scripts/aut_to_bcg.py    <bcgio binary> <model dir> <logs dir>
 ```
 
 Both run each conversion once, without time limit:
@@ -117,9 +105,9 @@ Both run each conversion once, without time limit:
   `storm-conv` binary. It calls storm-conv directly (output goes to stdout, no log files) and **writes `model.jani` into
   the model directory, overwriting an existing one**. Run it before `generate_inv.py`, which requires `model.jani`.
   It exits with an error if a model lacks `model.prism`/`property.props` or if a conversion fails.
-- `aut_to_bcg.py` (builds invocations and executes them with `run.py`) converts `modest.model.aut` (so run it after `copy_modelfiles.py`) to `bcgio.model.bcg` with
+- `aut_to_bcg.py` (builds invocations and executes them with `run.py`) converts `modest.model.aut` (so run it after the exports) to `bcgio.model.bcg` with
   the given `bcgio` binary, and additionally compresses the result with `xz` and `gzip` (one invocation/log each).
-  Output: `<output dir>/bcgio_from-aut_to-bcg_default/<model>/bcgio.model.bcg[.xz|.gz]`.
+  Output: `<model dir>/<model>/bcgio.model.bcg[.xz|.gz]`.
   The logs are named `modest_bcgio_aut-to-bcg[-xz|-gz]_default_<model>_rep1.log` so that `create_csv.py` reports the
   sizes next to the Modest exports.
 

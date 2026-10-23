@@ -47,7 +47,7 @@ TASK_IMPORT = "import"
 # %prism = path to prism binary
 # %storm = path to storm binary
 # %indir = path to model directory
-# %outdir = path to output directory
+# %outdir = path to output directory (exported files are named <tool>.model.<format> and are copied to the model directory)
 
 # Modest
 MODEST = "modest"
@@ -79,15 +79,15 @@ def modest_command(input_format : str, task : str, configuration : str) -> str:
     elif task == TASK_IMPORT:
         cmd += " --stop-after Exploration"
     elif task == UMB:
-        cmd += " --umb %outdir/model.umb %outdir/umb.properties.txt --stop-after Exploration"
+        cmd += " --umb %outdir/modest.model.umb %outdir/modest.umb.properties.txt --stop-after Exploration"
     elif task == UMB_XZ:
-        cmd += " --umb %outdir/model.umb.xz %outdir/umbxz.properties.txt --umb-compress XZ --stop-after Exploration"
+        cmd += " --umb %outdir/modest.model.umb.xz %outdir/modest.umbxz.properties.txt --umb-compress XZ --stop-after Exploration"
     elif task == UMB_GZ:
-        cmd += " --umb %outdir/model.umb.gz %outdir/umbgz.properties.txt --umb-compress GZIP --stop-after Exploration"
+        cmd += " --umb %outdir/modest.model.umb.gz %outdir/modest.umbgz.properties.txt --umb-compress GZIP --stop-after Exploration"
     elif task == AUT:
-        cmd += " --statespace %outdir/model.aut AUT --stop-after Exploration"
+        cmd += " --statespace %outdir/modest.model.aut AUT --stop-after Exploration"
     elif task == IMCA:
-        cmd += " --statespace %outdir/model.mrm IMCA --stop-after Exploration"
+        cmd += " --statespace %outdir/modest.model.mrm IMCA --stop-after Exploration"
     else:
         raise AssertionError("Unsupported task/output format: " + task)
     # configuration
@@ -100,7 +100,7 @@ PRISM = "prism"
 prism_configurations = OrderedDict()
 prism_configurations["ex"] = "-javamaxmem 32g -buildall -ex"
 
-PRISM_INPUT_FORMATS = [PRISM_LANGUAGE, UMB, UMB_GZ, UMB_XZ, TRA, TRA_GZ, TRA_XZ]
+PRISM_INPUT_FORMATS = [PRISM_LANGUAGE, UMB, UMB_GZ, UMB_XZ, TRA] # imports of compressed TRA files are not evaluated
 PRISM_OUTPUT_FORMATS = [UMB, UMB_GZ, UMB_XZ, TRA, TRA_GZ, TRA_XZ]
 
 # Workaround: PRISM strips the .gz/.xz extension from compressed UMB files (out.umb.gz becomes out.umb),
@@ -134,17 +134,17 @@ def prism_command(input_format : str, task : str, configuration : str) -> str:
     elif task == TASK_CHECK:
         cmd += " %indir/property.props"
     elif task == UMB:
-        cmd += f" -exportmodel %outdir/model.umb:format=umb,states=false,zip=false"
+        cmd += f" -exportmodel %outdir/prism.model.umb:format=umb,states=false,zip=false"
     elif task == UMB_GZ:
-        cmd += f" -exportmodel %outdir/model.umbgz:format=umb,states=false,zip=gzip"
+        cmd += f" -exportmodel %outdir/prism.model.umbgz:format=umb,states=false,zip=gzip"
     elif task == UMB_XZ:
-        cmd += f" -exportmodel %outdir/model.umbxz:format=umb,states=false,zip=xz"
+        cmd += f" -exportmodel %outdir/prism.model.umbxz:format=umb,states=false,zip=xz"
     elif task == TRA:
-        cmd += f" -exportmodel %outdir/model.pexp:format=explicit,states=false,zip=false,precision=17"
+        cmd += f" -exportmodel %outdir/prism.model.pexp:format=explicit,states=false,zip=false,precision=17"
     elif task == TRA_GZ:
-        cmd += f" -exportmodel %outdir/model.pexp.gz:format=explicit,states=false,zip=gzip,precision=17"
+        cmd += f" -exportmodel %outdir/prism.model.pexp.gz:format=explicit,states=false,zip=gzip,precision=17"
     elif task == TRA_XZ:
-        cmd += f" -exportmodel %outdir/model.pexp.xz:format=explicit,states=false,zip=xz,precision=17"
+        cmd += f" -exportmodel %outdir/prism.model.pexp.xz:format=explicit,states=false,zip=xz,precision=17"
     else:
         raise AssertionError("Unsupported task/output format: " + task)
     return cmd
@@ -156,7 +156,7 @@ storm_configurations["sparse"] = ""
 # storm_configurations["exact"] = "--exact"
 storm_configurations["cudd"] = "--engine dd-to-sparse --ddlib cudd --cudd:maxmem 8192"
 
-STORM_INPUT_FORMATS = [PRISM_LANGUAGE, JANI, UMB, UMB_XZ, UMB_GZ, DRN, DRN_XZ, DRN_GZ]
+STORM_INPUT_FORMATS = [PRISM_LANGUAGE, JANI, UMB, UMB_XZ, UMB_GZ, DRN] # imports of compressed DRN files are not evaluated
 STORM_OUTPUT_FORMATS = [UMB, UMB_XZ, UMB_GZ, DRN, DRN_XZ, DRN_GZ]
 
 def storm_command(input_format : str, task : str, configuration : str) -> str:
@@ -193,17 +193,17 @@ def storm_command(input_format : str, task : str, configuration : str) -> str:
         else:
             cmd += "--prop %indir/property.props"
     elif task == UMB:
-        cmd += f"--exportbuild %outdir/model{exact}.umb umb --compression none "
+        cmd += f"--exportbuild %outdir/storm.model{exact}.umb umb --compression none "
     elif task == UMB_XZ:
-        cmd += f"--exportbuild %outdir/model{exact}.umb.xz umb --compression xz "
+        cmd += f"--exportbuild %outdir/storm.model{exact}.umb.xz umb --compression xz "
     elif task == UMB_GZ:
-        cmd += f"--exportbuild %outdir/model{exact}.umb.gz umb --compression gzip "
+        cmd += f"--exportbuild %outdir/storm.model{exact}.umb.gz umb --compression gzip "
     elif task == DRN:
-        cmd += f"--exportbuild %outdir/model{exact}.drn drn --compression none "
+        cmd += f"--exportbuild %outdir/storm.model{exact}.drn drn --compression none "
     elif task == DRN_XZ:
-        cmd += f"--exportbuild %outdir/model{exact}.drn.xz drn --compression xz "
+        cmd += f"--exportbuild %outdir/storm.model{exact}.drn.xz drn --compression xz "
     elif task == DRN_GZ:
-        cmd += f"--exportbuild %outdir/model{exact}.drn.gz drn --compression gzip "
+        cmd += f"--exportbuild %outdir/storm.model{exact}.drn.gz drn --compression gzip "
     else:
         raise AssertionError("Unsupported task/output format: " + task)
     # configuration
@@ -213,19 +213,18 @@ def storm_command(input_format : str, task : str, configuration : str) -> str:
 
 
 if __name__ == "__main__":
-    print("Creates invocation files in the current working directory. Usage:\n\tpython {} <bin directory> <model directory> <output directory> <logs directory> <time limit in seconds> <repititions>".format(sys.argv[0]))
-    if len(sys.argv) != 7:
+    print("Creates invocation files in the current working directory. Usage:\n\tpython {} <bin directory> <model directory> <logs directory> <time limit in seconds> <repetitions>\nThe exported files are written to the model directory.".format(sys.argv[0]))
+    if len(sys.argv) != 6:
         print("Invalid number of arguments.")
         sys.exit(1)
 
     # read settings and ensure directories and executables exist
     bin_directory = sys.argv[1]
     input_directory = sys.argv[2]
-    output_directory = sys.argv[3]
-    logs_directory = sys.argv[4]
-    time_limit = int(sys.argv[5])
-    repetitions = int(sys.argv[6])
-    for dir_path in [input_directory, output_directory, logs_directory]:
+    logs_directory = sys.argv[3]
+    time_limit = int(sys.argv[4])
+    repetitions = int(sys.argv[5])
+    for dir_path in [input_directory, logs_directory]:
         ensure_directory(dir_path)
     for tool in [STORM]:
         bin_path = os.path.join(bin_directory, tool)
@@ -262,13 +261,13 @@ if __name__ == "__main__":
             templates[template_id] = storm_command(input_format, task, configuration)
         else:
             raise AssertionError("Unsupported tool: " + tool)
+    output_producers = OrderedDict() # output file name -> command templates that write this file (to the model directory)
     def generate_invocations(cmd_templates):
         invocations = []
         for cmd_id in cmd_templates:
             print("Command template '{}':\n\t{}".format(cmd_id, cmd_templates[cmd_id]))
             for model in models:
                 model_input_dir = os.path.join(input_directory, model)
-                model_output_dir = os.path.join(output_directory, cmd_id, model)
                 invocation_id = f"{cmd_id}_{model}"
                 command = cmd_templates[cmd_id]
                 # command = command.replace("%indir", model_input_dir)
@@ -291,15 +290,17 @@ if __name__ == "__main__":
                             if infilename not in infiles: infiles.append(infilename)
                     invocation["input-files"] = infiles
                 if "%outdir" in command:
-                    ensure_directory(model_output_dir)
-                    invocation["output-directory"] = model_output_dir
+                    invocation["output-directory"] = model_input_dir # exported files are written to the model directory
                     outfiles = []
                     for outfilestring in command.split("%outdir/")[1:]:
                         outfilename = outfilestring.split(" ")[0].split(":")[0]
                         if outfilename not in outfiles:
                             outfiles.append(outfilename)
                     invocation["output-files"] = outfiles
-                    # command = command.replace("%outdir", model_output_dir)
+                    for outfilename in outfiles:
+                        producers = output_producers.setdefault(outfilename, [])
+                        if cmd_id not in producers:
+                            producers.append(cmd_id)
                 command = command.replace("%modest", os.path.join(bin_directory, MODEST))
                 command = command.replace("%prism", os.path.join(bin_directory, PRISM))
                 command = command.replace("%storm", os.path.join(bin_directory, STORM))
@@ -365,6 +366,14 @@ if __name__ == "__main__":
     add_cmd_template(storm_import_templates, STORM, JANI, TASK_IMPORT, "cudd")
     storm_import_invs = generate_invocations(storm_import_templates)
     all_import += storm_import_invs
+
+    # exported files are written to the model directories, so output files must be unique
+    other_files = ["model.prism", "model.jani", "property.props", "bcgio.model.bcg", "bcgio.model.bcg.xz", "bcgio.model.bcg.gz"] # files of the models and of aut_to_bcg.py
+    for outfilename, producers in output_producers.items():
+        if len(producers) > 1:
+            print("WARNING: The output file '{}' is written by several command templates, so they overwrite each other: {}".format(outfilename, ", ".join(producers)))
+        if outfilename in other_files:
+            print("WARNING: The output file '{}' of '{}' overwrites another file in the model directory.".format(outfilename, ", ".join(producers)))
 
     print("\n" + "#" * 40 + "\nSaving invocations to json...\n" + "#" * 40)
     save_invjson(modest_exprt_invs, repetitions, "inv_modest_export.json")
