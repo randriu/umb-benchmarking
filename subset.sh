@@ -67,8 +67,8 @@ mkdir -p csv html
 (cd csv && python3 ../../scripts/create_csv.py ../logs ../models)
 (cd html && python3 ../../scripts/create_html.py ../csv ../logs ../models)
 
-# numbers of the paper (for the models of this run)
-python3 ../scripts/paper_numbers.py csv models
-
 # plots of the paper (for the models of this run): compile plots.tex with pdflatex (twice)
 python3 ../scripts/create_tex.py csv
+
+# numbers of the paper (for the models of this run)
+python3 ../scripts/paper_numbers.py csv models
