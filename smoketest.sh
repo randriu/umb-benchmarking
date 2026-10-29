@@ -37,8 +37,10 @@ python3 ../scripts/run.py inv_export.json all
 # run the importers/checkers (requires to have the exported files first)
 python3 ../scripts/run.py inv_import.json all
 
-# if a bcgio binary is available (needs the exported modest.model.aut):
-# python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
+# convert the exported aut files to bcg, if bin/bcgio (CADP's bcg_io) exists
+if [ -e ../bin/bcgio ]; then
+    python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
+fi
 
 # results
 mkdir -p csv html

@@ -20,7 +20,7 @@ ln -s /path/to/cadp/bin.x64/bcg_io          bin/bcgio       # only for aut_to_bc
 - `generate_inv.py` and `run.py` need `modest`, `prism`, and `storm`. `storm-conv` and `bcgio` are only needed for the
   conversions below (they are passed to the scripts as `bin/storm-conv` and `bin/bcgio`).
 - The paper uses PRISM 4.11 (`f118f0b`), Storm 1.14.0 (`2c6a7c2`), mcsta v3.1.311 (`g14c460466`), and CADP 2025-l.
-- Without CADP, link the dummy instead (see "Conversions" below): `ln -s $PWD/tools/bcgiodummy/bcgio bin/bcgio`.
+- Without CADP, leave out `bin/bcgio`: the scripts then skip the bcg conversion (no BCG columns in the results).
 - Check the setup with `for t in modest prism storm; do test -x bin/$t || echo "bin/$t is missing"; done`.
 
 ## Quick start
@@ -36,8 +36,8 @@ Three scripts in the repository root run the whole pipeline (steps 1, 2, 4, 5 be
 The models are listed explicitly in the `MODELS` array at the top of each script (with their type and an estimate of their
 runtime), so you can handpick your own subset by editing it. `subset.sh` and `all.sh` end by running `paper_numbers.py`,
 which prints the numbers quoted in the paper, and `create_tex.py`, which creates `plots.tex` with the plots of the paper
-(compile it with `pdflatex plots.tex`, twice). The scripts do not run the optional conversions (`prism_to_jani.py`,
-`aut_to_bcg.py`; see the comments in the scripts). The results are in `<directory>/csv` and `<directory>/html/index.html`.
+(compile it with `pdflatex plots.tex`, twice). The scripts run `aut_to_bcg.py` only if `bin/bcgio` exists, and
+not `prism_to_jani.py` (see the comments in the scripts). The results are in `<directory>/csv` and `<directory>/html/index.html`.
 If the directory already exists, the scripts ask whether to delete it to start a fresh experiment. If you answer no (or
 run non-interactively), they keep it and continue in it; files of earlier runs, e.g., logs and models that are no longer
 in the `MODELS` list, then remain and show up in the results.
@@ -60,8 +60,10 @@ python3 ../scripts/run.py inv_export.json all
 # run the importers/checkers
 python3 ../scripts/run.py inv_import.json all
 
-# if a bcgio binary is available (needs the exported modest.model.aut):
-# python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
+# convert the exported aut files to bcg, if bin/bcgio (CADP's bcg_io) exists
+if [ -e ../bin/bcgio ]; then
+    python3 ../scripts/aut_to_bcg.py ../bin/bcgio models logs
+fi
 
 # results
 mkdir -p csv html
